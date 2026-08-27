@@ -1,0 +1,3 @@
+/home/shreyas0812/Projects/system-design/build/CMakeFiles/circular_buffer.dir
+/home/shreyas0812/Projects/system-design/build/CMakeFiles/edit_cache.dir
+/home/shreyas0812/Projects/system-design/build/CMakeFiles/rebuild_cache.dir
