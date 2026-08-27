@@ -5,6 +5,9 @@ A robot's IMU driver thread produces orientation readings at ~1 kHz. A control l
 The two run on different cores at different, drifting rates, so you decouple them with a bounded ring buffer: the IMU
 pushes readings in, the control loop pops them out, and if the control loop briefly stalls, the buffer absorbs the backlog
 up to its capacity
+
+This is the non block version, which is simpler and faster, but requires the producer and consumer to run on different cores. 
+The lock is only used to protect the head and tail indices, not the data itself, so the producer and consumer can run in parallel without blocking each other.
 */
 
 #include <iostream>
