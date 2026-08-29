@@ -10,6 +10,7 @@ cmake --build build
 
 cmake --build build
 
-## Run: 
+## Run:
 
-./build/circular_buffer
+./build/circular_buffer_blocking
+./build/circular_buffer_nonblocking
