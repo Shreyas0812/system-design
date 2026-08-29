@@ -29,24 +29,41 @@ class RingBuffer {
 public:
     RingBuffer(size_t capacity) : buffer_(capacity), capacity_(capacity) {}
     
-    void push(const T& item) {
+    bool push(const T& item) {
         std::unique_lock<std::mutex> lock(mutex_);
-        not_full_.wait(lock, [this] { return size_< capacity_; });
+        not_full_.wait(lock, [this] { return size_< capacity_ || done_; });
+        if (done_) {
+            return false; // Buffer is full and shutdown has been called
+        }
         buffer_[tail_] = item;
         tail_ = (tail_ + 1) % capacity_;
         ++size_;
         lock.unlock();
         not_empty_.notify_one();
+        return true;
     }
     
-    void pop(T& item) {
+    bool pop(T& item) {
         std::unique_lock<std::mutex> lock(mutex_);
-        not_empty_.wait(lock, [this] { return size_ > 0; });
+        not_empty_.wait(lock, [this] { return size_ > 0 || done_; });
+        if (size_ ==0 && done_) {
+            return false; // Buffer is empty and shutdown has been called
+        }
         item = std::move(buffer_[head_]);
         head_ = (head_ + 1) % capacity_;
         --size_;
         lock.unlock();
         not_full_.notify_one();
+        return true;
+    }
+
+    void shutdown() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            done_ = true;
+        }
+        not_empty_.notify_all();
+        not_full_.notify_all();
     }
     
 private:
@@ -57,6 +74,7 @@ private:
     size_t capacity_;
     mutable std::mutex mutex_;
     std::condition_variable not_full_, not_empty_;
+    bool done_ = false;
 };
 
 int main() {
