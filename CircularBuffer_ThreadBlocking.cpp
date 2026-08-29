@@ -6,7 +6,10 @@ The two run on different cores at different, drifting rates, so you decouple the
 pushes readings in, the control loop pops them out, and if the control loop briefly stalls, the buffer absorbs the backlog
 up to its capacity
 
-This is the block version, which is more complex and slower, but allows the producer and consumer to run on the same core.
+BLOCKING version: push() waits on a condition variable while the buffer is
+full; pop() waits while it is empty. No data is dropped and no caller spins,
+at the cost of possibly making a caller wait. The single mutex serializes the
+whole critical section, so indices AND slot data are protected together.
 */
 
 #include <iostream>

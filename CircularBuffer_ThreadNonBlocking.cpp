@@ -6,8 +6,10 @@ The two run on different cores at different, drifting rates, so you decouple the
 pushes readings in, the control loop pops them out, and if the control loop briefly stalls, the buffer absorbs the backlog
 up to its capacity
 
-This is the non block version, which is simpler and faster, but requires the producer and consumer to run on different cores. 
-The lock is only used to protect the head and tail indices, not the data itself, so the producer and consumer can run in parallel without blocking each other.
+NON-BLOCKING version: push() returns false when full, pop() returns false when
+empty — the caller decides what to do and never waits. Simpler, but the caller
+MUST check the return value or it will drop data / read garbage. The mutex
+serializes the whole critical section, protecting indices and slot data alike.
 */
 
 #include <iostream>
