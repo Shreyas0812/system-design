@@ -11,3 +11,6 @@ target_link_libraries(circular_buffer_blocking PRIVATE Threads::Threads)
 
 add_executable(circular_buffer_nonblocking CircularBuffer_ThreadNonBlocking.cpp)
 target_link_libraries(circular_buffer_nonblocking PRIVATE Threads::Threads)
+
+add_executable(thread_pool ThreadPool.cpp)
+target_link_libraries(thread_pool PRIVATE Threads::Threads)
