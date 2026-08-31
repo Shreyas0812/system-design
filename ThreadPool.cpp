@@ -11,7 +11,7 @@ Implementation of ThreadPool -- we define the number of threads so we can avoid 
 #include <condition_variable>
 #include <functional>
 #include <chrono>
-
+#include <future>
 
 class ThreadPool {
 public:
@@ -39,6 +39,17 @@ public:
             tasks_.push(std::move(task));
         }
         cv_.notify_one();
+    }
+
+    template <class F, class... Args>
+    auto submit(F&& f, Args&&... args) -> std::future<std::invoke_result_t<F, Args...>> {
+        using R = std::invoke_result_t<F, Args...>;
+        auto task = std::make_shared<std::packaged_task<R()>>(
+            std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+        );
+        std::future<R> fut = task->get_future();
+        enqueue([task]() { (*task)(); });
+        return fut;
     }
 
     //No copying 
@@ -72,14 +83,23 @@ private:
 int main() {
     ThreadPool pool(4); // Create a thread pool with 4 worker threads
 
-    for (int i = 0; i < 10; ++i) {
-        pool.enqueue([i] {
-            std::cout << "Task" << i << " on thread "
-                    << std::this_thread::get_id() << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        });
-    } // pool destructor called here
+    // for (int i = 0; i < 10; ++i) {
+    //     pool.enqueue([i] {
+    //         std::cout << "Task" << i << " on thread "
+    //                 << std::this_thread::get_id() << std::endl;
+    //         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    //     });
+    // } // pool destructor called here
 
-    std::cout << "All Done" << std::endl;
+    // std::cout << "All Done" << std::endl;
+
+    std::future<int> f1 = pool.submit([](int a, int b) { return a + b; }, 2, 3);
+    std::future<int>    f2 = pool.submit([](int n){ return n * n; }, 7);
+    std::future<std::string> f3 = pool.submit([]{ return std::string("hello"); });
+
+    std::cout << "2 + 3 = " << f1.get() << "\n";   // blocks until worker computes it → 5
+    std::cout << "7^2   = " << f2.get() << "\n";   // → 49
+    std::cout << "str   = " << f3.get() << "\n";   // → hello
+
     return 0;
 }
