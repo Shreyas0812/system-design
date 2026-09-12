@@ -46,6 +46,11 @@ public:
         return true;
     }
 
+    bool isEmpty() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return size_ == 0;
+    }
+
 private:
     std::vector<int> buffer_;
     size_t capacity_;
@@ -53,6 +58,38 @@ private:
     size_t tail_ = 0;
     size_t size_ = 0;
     std::mutex mutex_;
+};
+
+
+class ParserThreadPool {
+public:
+    ParserThreadPool(size_t num_workers, RingBuffer<Reading>& rb) : rb_(rb) {
+        for (size_t i = 0; i < num_workers; ++i) {
+            workers_.emplace_back([this] { worker_loop(); });
+        }
+    }
+
+private:
+    void worker_loop() {
+        // Implementation for the worker thread
+        while (true) {
+            std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
+
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                cv_.wait(lock, [this] { return rb_.isEmpty(); });
+                rb_.pop(current_reading_);
+                std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
+            }
+
+        }
+    }
+
+    std::vector<std::thread> workers_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    RingBuffer<Reading>& rb_;
+    Reading current_reading_;
 };
 
 void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::time_point start_time) {
@@ -75,11 +112,13 @@ void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::tim
 
 int main() {
     RingBuffer<Reading> rb(8); // Capacity 8
+    ParserThreadPool parser_pool(4, rb); // 4 worker threads
 
     auto start_time = std::chrono::steady_clock::now();
 
     std::thread reader(dataGenerator, std::ref(rb), start_time);
 
+    reader.join();
 
     return 0;
 }
