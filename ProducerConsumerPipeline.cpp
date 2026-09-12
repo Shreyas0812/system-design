@@ -52,7 +52,7 @@ public:
     }
 
 private:
-    std::vector<int> buffer_;
+    std::vector<T> buffer_;
     size_t capacity_;
     size_t head_ = 0;
     size_t tail_ = 0;
