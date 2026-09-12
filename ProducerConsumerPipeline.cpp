@@ -55,8 +55,30 @@ private:
     std::mutex mutex_;
 };
 
+void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::time_point start_time) {
+    Reading reading;
+    reading.seq = 0;
+    
+    reading.euler_x = 0.0;
+    reading.euler_y = 0.0;
+    reading.euler_z = 0.0;
+
+    while (std::chrono::steady_clock::now() - start_time < std::chrono::seconds(30)) {
+        reading.seq++;
+        reading.euler_x = 0.1 * reading.seq;
+        reading.euler_y = 0.1 * reading.seq;
+        reading.euler_z = 0.1 * reading.seq;
+        rb.push(reading);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
 int main() {
     RingBuffer<Reading> rb(8); // Capacity 8
+
+    auto start_time = std::chrono::steady_clock::now();
+
+    std::thread reader(dataGenerator, std::ref(rb), start_time);
 
 
     return 0;
