@@ -75,9 +75,7 @@ private:
         while (true) {
             std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
 
-            {
-                std::unique_lock<std::mutex> lock(mutex_);
-                cv_.wait(lock, [this] { return rb_.isEmpty(); });
+            if (!rb_.isEmpty()) {
                 rb_.pop(current_reading_);
                 std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
             }
@@ -86,8 +84,6 @@ private:
     }
 
     std::vector<std::thread> workers_;
-    std::mutex mutex_;
-    std::condition_variable cv_;
     RingBuffer<Reading>& rb_;
     Reading current_reading_;
 };
