@@ -68,12 +68,31 @@ public:
             workers_.emplace_back([this] { worker_loop(); });
         }
     }
+    ~ParserThreadPool() {
+        {
+            std::unique_lock<std::mutex> lock(mtx_);
+            stop_ = true;
+        }
+        for (auto& worker : workers_) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+    }
 
 private:
     void worker_loop() {
         // Implementation for the worker thread
         while (true) {
             std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
+
+            {
+                std::unique_lock<std::mutex> lock(mtx_);
+                if (stop_) {
+                    return;
+                }
+            }
+
 
             if (!rb_.isEmpty()) {
                 rb_.pop(current_reading_);
@@ -86,6 +105,9 @@ private:
     std::vector<std::thread> workers_;
     RingBuffer<Reading>& rb_;
     Reading current_reading_;
+
+    std::mutex mtx_;
+    bool stop_ = false;
 };
 
 void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::time_point start_time) {
