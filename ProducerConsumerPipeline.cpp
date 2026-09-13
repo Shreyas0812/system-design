@@ -3,6 +3,7 @@
 #include <chrono>
 #include <mutex>
 #include <vector>
+#include <condition_variable>
 
 struct Reading {
     int seq;        // sequence number
@@ -25,7 +26,7 @@ public:
     RingBuffer(size_t capacity) : buffer_(capacity), capacity_(capacity) {}
     
     bool push(const T& item) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         not_full_.wait(lock, [this] { return size_ < capacity_ || done_; });
         if (done_) {
             return false; // Buffer is full and shutdown has been called
@@ -34,12 +35,12 @@ public:
         tail_ = (tail_ + 1) % capacity_;
         ++size_;
         lock.unlock();
-        not_empty_.notify_one();
+        not_full_.notify_one();
         return true;
     }
     
     bool pop(T& item) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         not_empty_.wait(lock, [this] { return size_ > 0 || done_; });
         if (size_ == 0 && done_) {
             return false; // Buffer is empty and shutdown has been called
