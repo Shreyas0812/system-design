@@ -35,7 +35,7 @@ public:
         tail_ = (tail_ + 1) % capacity_;
         ++size_;
         lock.unlock();
-        not_full_.notify_one();
+        not_empty_.notify_one();
         return true;
     }
     
