@@ -26,29 +26,39 @@ public:
     
     bool push(const T& item) {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (size_ == capacity_) {
-            return false; // Buffer is full
+        not_full_.wait(lock, [this] { return size_ < capacity_ || done_; });
+        if (done_) {
+            return false; // Buffer is full and shutdown has been called
         }
         buffer_[tail_] = item;
         tail_ = (tail_ + 1) % capacity_;
         ++size_;
+        lock.unlock();
+        not_empty_.notify_one();
         return true;
     }
     
     bool pop(T& item) {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (size_ == 0) {
-            return false; // Buffer is empty
+        not_empty_.wait(lock, [this] { return size_ > 0 || done_; });
+        if (size_ == 0 && done_) {
+            return false; // Buffer is empty and shutdown has been called
         }
         item = std::move(buffer_[head_]);
         head_ = (head_ + 1) % capacity_;
         --size_;
+        lock.unlock();
+        not_full_.notify_one();
         return true;
     }
 
-    bool isEmpty() const {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return size_ == 0;
+    void shutdown() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            done_ = true;
+        }
+        not_full_.notify_all();
+        not_empty_.notify_all();
     }
 
 private:
@@ -58,6 +68,8 @@ private:
     size_t tail_ = 0;
     size_t size_ = 0;
     std::mutex mutex_;
+    std::condition_variable not_full_, not_empty_;
+    bool done_ = false;
 };
 
 
@@ -69,10 +81,6 @@ public:
         }
     }
     ~ParserThreadPool() {
-        {
-            std::unique_lock<std::mutex> lock(mtx_);
-            stop_ = true;
-        }
         for (auto& worker : workers_) {
             if (worker.joinable()) {
                 worker.join();
@@ -86,17 +94,11 @@ private:
         while (true) {
             std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
 
-            {
-                std::unique_lock<std::mutex> lock(mtx_);
-                if (stop_) {
-                    return;
-                }
-            }
-
-
-            if (!rb_.isEmpty()) {
-                rb_.pop(current_reading_);
+            if(rb_.pop(current_reading_)) {
                 std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
+            } else {
+                std::cout << "Thread " << std::this_thread::get_id() << " stopping as buffer is empty and shutdown has been called." << std::endl;
+                break; // Exit the loop if shutdown has been called and buffer is empty
             }
 
         }
@@ -105,9 +107,6 @@ private:
     std::vector<std::thread> workers_;
     RingBuffer<Reading>& rb_;
     Reading current_reading_;
-
-    std::mutex mtx_;
-    bool stop_ = false;
 };
 
 void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::time_point start_time) {
@@ -137,6 +136,7 @@ int main() {
     std::thread reader(dataGenerator, std::ref(rb), start_time);
 
     reader.join();
+    rb.shutdown(); // Signal the parser threads to stop
 
     return 0;
 }
