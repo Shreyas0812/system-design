@@ -127,12 +127,14 @@ private:
 
     void worker_loop() {
         // Implementation for the worker thread
+        Reading current_reading;
+        
         while (true) {
             // std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
-
-            if(rb_.pop(current_reading_)) {
-                std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
-                WriteData write_data = eulertoQuaternion(current_reading_);
+            
+            if(rb_.pop(current_reading)) {
+                std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading.seq << std::endl;
+                WriteData write_data = eulertoQuaternion(current_reading);
 
                 wb_.push(write_data);
 
@@ -147,7 +149,6 @@ private:
     std::vector<std::thread> workers_;
     RingBuffer<Reading>& rb_;
     RingBuffer<WriteData>& wb_;
-    Reading current_reading_;
 
     std::atomic<bool> done_{false};
 };
