@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <condition_variable>
+#include <cmath>
 
 struct Reading {
     int seq;        // sequence number
@@ -76,7 +77,7 @@ private:
 
 class ParserThreadPool {
 public:
-    ParserThreadPool(size_t num_workers, RingBuffer<Reading>& rb) : rb_(rb) {
+    ParserThreadPool(size_t num_workers, RingBuffer<Reading>& rb, RingBuffer<WriteData>& wb) : rb_(rb), wb_(wb) {
         for (size_t i = 0; i < num_workers; ++i) {
             workers_.emplace_back([this] { worker_loop(); });
         }
@@ -87,6 +88,7 @@ public:
                 worker.join();
             }
         }
+        wb_.shutdown(); // Ensure the write buffer is also shutdown
     }
 
 private:
@@ -121,6 +123,10 @@ private:
 
             if(rb_.pop(current_reading_)) {
                 std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
+                WriteData write_data = eulertoQuaternion(current_reading_);
+
+                wb_.push(write_data);
+
             } else {
                 std::cout << "Thread " << std::this_thread::get_id() << " stopping as buffer is empty and shutdown has been called." << std::endl;
                 break; // Exit the loop if shutdown has been called and buffer is empty
@@ -131,6 +137,7 @@ private:
 
     std::vector<std::thread> workers_;
     RingBuffer<Reading>& rb_;
+    RingBuffer<WriteData>& wb_;
     Reading current_reading_;
 };
 
@@ -154,7 +161,9 @@ void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::tim
 
 int main() {
     RingBuffer<Reading> rb(8); // Capacity 8
-    ParserThreadPool parser_pool(4, rb); // 4 worker threads
+    RingBuffer<WriteData> wb(8); // Capacity 8 for write buffer
+    
+    ParserThreadPool parser_pool(4, rb, wb); // 4 worker threads
 
     auto start_time = std::chrono::steady_clock::now();
 
