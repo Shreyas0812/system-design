@@ -90,6 +90,30 @@ public:
     }
 
 private:
+    WriteData eulertoQuaternion(const Reading& reading) {
+        // Assuming a standard ZYX sequence (intrinsic rotations applied in the order of Z, then Y, then X) -- the values are in radians
+        const double PI = 3.14159265358979323846;
+
+        // Precompute half-angle sines and cosines
+        double cx = std::cos(reading.euler_x / 2.0);
+        double sx = std::sin(reading.euler_x / 2.0);
+        double cy = std::cos(reading.euler_y / 2.0);
+        double sy = std::sin(reading.euler_y / 2.0);
+        double cz = std::cos(reading.euler_z / 2.0);
+        double sz = std::sin(reading.euler_z / 2.0);
+
+
+        WriteData write_data;
+        
+        write_data.seq = reading.seq;
+        write_data.quaternion_w =  cz * cy * cx + sz * sy * sx;
+        write_data.quaternion_x =  cz * cy * sx - sz * sy * cx;
+        write_data.quaternion_y =  cz * sy * cx + sz * cy * sx;
+        write_data.quaternion_z =  sz * cy * cx - cz * sy * sx;
+
+        return write_data;
+    }
+
     void worker_loop() {
         // Implementation for the worker thread
         while (true) {
