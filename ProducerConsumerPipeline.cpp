@@ -5,6 +5,7 @@
 #include <vector>
 #include <condition_variable>
 #include <cmath>
+#include <atomic>
 
 struct Reading {
     int seq;        // sequence number
@@ -83,6 +84,14 @@ public:
         }
     }
     ~ParserThreadPool() {
+        ThreadJoinAndShutdown();
+    }
+
+    void ThreadJoinAndShutdown() {
+        if (done_.exchange(true)) {
+            return; // Already done
+        }
+        
         for (auto& worker : workers_) {
             if (worker.joinable()) {
                 worker.join();
@@ -139,6 +148,8 @@ private:
     RingBuffer<Reading>& rb_;
     RingBuffer<WriteData>& wb_;
     Reading current_reading_;
+
+    std::atomic<bool> done_{false};
 };
 
 void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::time_point start_time) {
@@ -159,6 +170,23 @@ void dataGenerator(RingBuffer<Reading>& rb, const std::chrono::steady_clock::tim
     }
 }
 
+void dataWriter(RingBuffer<WriteData>& wb) {
+    WriteData write_data;
+    while (true) {
+        if(wb.pop(write_data)) {
+            std::cout << "Writing data: seq=" << write_data.seq 
+                      << ", quaternion=(" << write_data.quaternion_w 
+                      << ", " << write_data.quaternion_x 
+                      << ", " << write_data.quaternion_y 
+                      << ", " << write_data.quaternion_z << ")" 
+                      << std::endl;
+        } else {
+            std::cout << "Writer thread stopping as buffer is empty and shutdown has been called." << std::endl;
+            break; // Exit the loop if shutdown has been called and buffer is empty
+        }
+    }
+}
+
 int main() {
     RingBuffer<Reading> rb(8); // Capacity 8
     RingBuffer<WriteData> wb(8); // Capacity 8 for write buffer
@@ -169,8 +197,14 @@ int main() {
 
     std::thread reader(dataGenerator, std::ref(rb), start_time);
 
+    std::thread writer(dataWriter, std::ref(wb));
+
     reader.join();
     rb.shutdown(); // Signal the parser threads to stop
+
+    parser_pool.ThreadJoinAndShutdown(); // Wait for parser threads to finish and shutdown write buffer
+
+    writer.join(); // Wait for the writer thread to finish
 
     return 0;
 }
