@@ -93,7 +93,7 @@ private:
     void worker_loop() {
         // Implementation for the worker thread
         while (true) {
-            std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
+            // std::cout << "Thread " << std::this_thread::get_id() << " executing task" << std::endl;
 
             if(rb_.pop(current_reading_)) {
                 std::cout << "Thread " << std::this_thread::get_id() << " processed reading: " << current_reading_.seq << std::endl;
